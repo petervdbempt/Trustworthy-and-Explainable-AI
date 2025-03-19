@@ -1,6 +1,4 @@
-import torch
 import torch.nn as nn
-from CNN_model import CNN
 import torch.optim as optim
 import torchvision
 from utils.data_utils import *
