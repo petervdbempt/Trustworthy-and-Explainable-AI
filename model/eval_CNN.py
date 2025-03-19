@@ -1,19 +1,10 @@
-from CNN_model import CNN
 import torch
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import torchvision
-from utils.data_utils import transformer_for_data
-from utils.saliency_map import show_images_with_saliency
+from utils.data_utils import transformer_for_data, load_saved_model
+from utils.saliency_map import show_images_with_explainability, generate_gradcam
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def load_saved_model(model_path):
-    model = CNN().to(device)
-    model.load_state_dict(torch.load(model_path))
-    model.eval()
-    print(f"Model loaded from {model_path}")
-    return model
-
 
 def evaluate_model(model, dataloader):
     model.eval()
@@ -74,7 +65,7 @@ def main():
     for i, acc in enumerate(metrics['per_class_accuracy']):
         print(f"{classes[i]}: {acc:.4f}")
 
-    show_images_with_saliency(model, testloader, classes, num_images=5)
+    show_images_with_explainability(model, testloader, classes, num_images=5, use_gradCam=True)
 
 
 if __name__ == '__main__':
