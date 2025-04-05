@@ -1,8 +1,8 @@
 import torch
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import torchvision
-from utils.data_utils import transformer_for_data, load_saved_model
-from utils.saliency_map import show_images_with_explainability, generate_gradcam
+from old.utils.data_utils import transformer_for_data, load_saved_model
+from old.utils.saliency_map import show_images_with_explainability
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
