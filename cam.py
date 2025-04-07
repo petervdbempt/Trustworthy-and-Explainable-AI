@@ -7,10 +7,9 @@ from torchvision import models
 from torchvision.models import ResNet50_Weights
 
 from pytorch_grad_cam import (
-    GradCAM, ScoreCAM, AblationCAM
+    GradCAM, ScoreCAM, AblationCAM, FinerCAM
 )
 from pytorch_grad_cam import GuidedBackpropReLUModel
-from pytorch_grad_cam.finer_cam import FinerCAM
 from pytorch_grad_cam.utils.image import (
     show_cam_on_image, deprocess_image, preprocess_image
 )
@@ -68,7 +67,7 @@ if __name__ == '__main__':
         "gradcam": GradCAM,
         "scorecam": ScoreCAM,
         "ablationcam": AblationCAM,
-        "finercam": FinerCAM,
+        'finercam': FinerCAM
     }
 
     if args.device=='hpu':

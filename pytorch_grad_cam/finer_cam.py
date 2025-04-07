@@ -11,10 +11,17 @@ class FinerCAM:
         self.compute_input_gradient = self.base_cam.compute_input_gradient
         self.uses_gradients = self.base_cam.uses_gradients
 
+    def __enter__(self):
+        self.base_cam.__enter__()
+        return self
+
+    def __exit__(self, *args):
+        return self.base_cam.__exit__(*args)
+
     def __call__(self, *args, **kwargs):
         return self.forward(*args, **kwargs)
 
-    def forward(self, input_tensor: torch.Tensor, targets: List[torch.nn.Module] = None, eigen_smooth: bool = False,
+    def forward(self, input_tensor: torch.Tensor, targets: List[torch.nn.Module] = None, eigen_smooth: bool = False, aug_smooth: bool = False,
                 alpha: float = 1, comparison_categories: List[int] = [1, 2, 3], target_idx: int = None
                 ) -> np.ndarray:
         input_tensor = input_tensor.to(self.base_cam.device)
