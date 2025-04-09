@@ -1,5 +1,7 @@
 import argparse
 import os
+import random
+
 import cv2
 import numpy as np
 import torch
@@ -14,7 +16,7 @@ from pytorch_grad_cam.utils.image import (
     show_cam_on_image, deprocess_image, preprocess_image
 )
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
-
+import torch.nn.functional as F
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -31,7 +33,7 @@ def get_args():
         '--eigen-smooth',
         action='store_true',
         help='Reduce noise by taking the first principle component'
-        'of cam_weights*activations')
+             'of cam_weights*activations')
     parser.add_argument('--method', type=str, default='gradcam',
                         choices=[
                             'gradcam', 'fem', 'hirescam', 'gradcam++',
@@ -45,7 +47,7 @@ def get_args():
     parser.add_argument('--output-dir', type=str, default='output',
                         help='Output directory to save the images')
     args = parser.parse_args()
-    
+
     if args.device:
         print(f'Using device "{args.device}" for acceleration')
     else:
@@ -70,7 +72,7 @@ if __name__ == '__main__':
         'finercam': FinerCAM
     }
 
-    if args.device=='hpu':
+    if args.device == 'hpu':
         import habana_frameworks.torch.core as htcore
 
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT).to(torch.device(args.device)).eval()
@@ -87,7 +89,7 @@ if __name__ == '__main__':
     # You can also try selecting all layers of a certain type, with e.g:
     # from pytorch_grad_cam.utils.find_layers import find_layer_types_recursive
     # find_layer_types_recursive(model, [torch.nn.ReLU])
-    
+
     target_layers = [model.layer4]
 
     rgb_img = cv2.imread(args.image_path, 1)[:, :, ::-1]
@@ -104,6 +106,18 @@ if __name__ == '__main__':
     # targets = [ClassifierOutputReST(281)]
     targets = None
 
+    with torch.no_grad():
+        output_logits = model(input_tensor)
+        probs = F.softmax(output_logits, dim=1)[0]  # shape: (1000,)
+    predicted_label = torch.argmax(probs).item()
+    print(f"Predicted label = {predicted_label} with confidence = {probs[predicted_label]:.4f}")
+
+    # Pick a random label that is *not* the predicted one
+    random_label = random.randint(0, 999)
+    while random_label == predicted_label:
+        random_label = random.randint(0, 999)
+    print(f"Random wrong label = {random_label}")
+
     # Using the with statement ensures the context is freed, and you can
     # recreate different CAM objects in a loop.
     cam_algorithm = methods[args.method]
@@ -113,29 +127,53 @@ if __name__ == '__main__':
         # AblationCAM and ScoreCAM have batched implementations.
         # You can override the internal batch size for faster computation.
         cam.batch_size = 32
-        grayscale_cam = cam(input_tensor=input_tensor,
-                            targets=targets,
-                            aug_smooth=args.aug_smooth,
-                            eigen_smooth=args.eigen_smooth)
 
-        grayscale_cam = grayscale_cam[0, :]
+        targets_predicted = [ClassifierOutputTarget(predicted_label)]
+        grayscale_cam_pred = cam(input_tensor=input_tensor, targets=targets_predicted)
+        grayscale_cam_pred = grayscale_cam_pred[0, :]
 
-        cam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
-        cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
+        cam_image_pred = show_cam_on_image(rgb_img, grayscale_cam_pred, use_rgb=True)
+        cam_image_pred = cv2.cvtColor(cam_image_pred, cv2.COLOR_RGB2BGR)
+
+
+        targets_random = [ClassifierOutputTarget(random_label)]
+        grayscale_cam_random = cam(input_tensor=input_tensor, targets=targets_random)
+        grayscale_cam_random = grayscale_cam_random[0, :]
+
+        cam_image_random = show_cam_on_image(rgb_img, grayscale_cam_random, use_rgb=True)
+        cam_image_random = cv2.cvtColor(cam_image_random, cv2.COLOR_RGB2BGR)
+
 
     gb_model = GuidedBackpropReLUModel(model=model, device=args.device)
     gb = gb_model(input_tensor, target_category=None)
 
-    cam_mask = cv2.merge([grayscale_cam, grayscale_cam, grayscale_cam])
-    cam_gb = deprocess_image(cam_mask * gb)
+    # for predicted label
+    cam_mask_pred = cv2.merge([grayscale_cam_pred, grayscale_cam_pred, grayscale_cam_pred])
+    cam_gb_pred = deprocess_image(cam_mask_pred * gb)
     gb = deprocess_image(gb)
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam.jpg')
-    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb.jpg')
-    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb.jpg')
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_pred.jpg')
+    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb_pred.jpg')
+    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb_pred.jpg')
 
-    cv2.imwrite(cam_output_path, cam_image)
+    cv2.imwrite(cam_output_path, cam_image_pred)
     cv2.imwrite(gb_output_path, gb)
-    cv2.imwrite(cam_gb_output_path, cam_gb)
+    cv2.imwrite(cam_gb_output_path, cam_gb_pred)
+
+
+    # for random label
+    cam_mask_random = cv2.merge([grayscale_cam_random, grayscale_cam_random, grayscale_cam_random])
+    cam_gb_random = deprocess_image(cam_mask_random * gb)
+    gb = deprocess_image(gb)
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_random.jpg')
+    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb_random.jpg')
+    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb_random.jpg')
+
+    cv2.imwrite(cam_output_path, cam_image_random)
+    cv2.imwrite(gb_output_path, gb)
+    cv2.imwrite(cam_gb_output_path, cam_gb_random)
