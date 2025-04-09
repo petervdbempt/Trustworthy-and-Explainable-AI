@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
-from utils.data_utils import denormalize
+from old.utils.data_utils import denormalize
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
