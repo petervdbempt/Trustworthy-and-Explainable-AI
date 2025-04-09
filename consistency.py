@@ -150,9 +150,9 @@ if __name__ == '__main__':
 
         os.makedirs(args.output_dir, exist_ok=True)
 
-        cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam{i}.jpg')
-        gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb{i}.jpg')
-        cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb{i}.jpg')
+        cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_model{i}.jpg')
+        gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb_model{i}.jpg')
+        cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb_model{i}.jpg')
 
         cv2.imwrite(cam_output_path, cam_image)
         cv2.imwrite(gb_output_path, gb)
