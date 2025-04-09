@@ -141,22 +141,10 @@ if __name__ == '__main__':
 
             images.append(grayscale_cam)
 
-        gb_model = GuidedBackpropReLUModel(model=model, device=args.device)
-        gb = gb_model(input_tensor, target_category=None)
-
-        cam_mask = cv2.merge([grayscale_cam, grayscale_cam, grayscale_cam])
-        cam_gb = deprocess_image(cam_mask * gb)
-        gb = deprocess_image(gb)
-
         os.makedirs(args.output_dir, exist_ok=True)
 
         cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_model{i}.jpg')
-        gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb_model{i}.jpg')
-        cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb_model{i}.jpg')
-
         cv2.imwrite(cam_output_path, cam_image)
-        cv2.imwrite(gb_output_path, gb)
-        cv2.imwrite(cam_gb_output_path, cam_gb)
 
 
     def binarize_cam(cam, threshold=0.2):
@@ -174,4 +162,4 @@ if __name__ == '__main__':
     mask_rand_flat = mask_rand.flatten()
 
     iou_score = jaccard_score(mask_pred_flat, mask_rand_flat)
-    print(f"IoU between predicted-label CAM and random-label CAM = {iou_score:.4f}")
+    print(f"IoU between CAMS of the two different models = {iou_score:.4f}")

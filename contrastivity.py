@@ -144,40 +144,16 @@ if __name__ == '__main__':
         cam_image_random = show_cam_on_image(rgb_img, grayscale_cam_random, use_rgb=True)
         cam_image_random = cv2.cvtColor(cam_image_random, cv2.COLOR_RGB2BGR)
 
-
-    gb_model = GuidedBackpropReLUModel(model=model, device=args.device)
-    gb = gb_model(input_tensor, target_category=None)
-
-    # for predicted label
-    cam_mask_pred = cv2.merge([grayscale_cam_pred, grayscale_cam_pred, grayscale_cam_pred])
-    cam_gb_pred = deprocess_image(cam_mask_pred * gb)
-    gb = deprocess_image(gb)
-
     os.makedirs(args.output_dir, exist_ok=True)
 
-    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_pred.jpg')
-    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb_pred.jpg')
-    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb_pred.jpg')
-
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_pred_label{predicted_label}.jpg')
     cv2.imwrite(cam_output_path, cam_image_pred)
-    cv2.imwrite(gb_output_path, gb)
-    cv2.imwrite(cam_gb_output_path, cam_gb_pred)
-
 
     # for random label
-    cam_mask_random = cv2.merge([grayscale_cam_random, grayscale_cam_random, grayscale_cam_random])
-    cam_gb_random = deprocess_image(cam_mask_random * gb)
-    gb = deprocess_image(gb)
-
     os.makedirs(args.output_dir, exist_ok=True)
 
-    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_random.jpg')
-    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb_random.jpg')
-    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb_random.jpg')
-
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_random_label{random_label}.jpg')
     cv2.imwrite(cam_output_path, cam_image_random)
-    cv2.imwrite(gb_output_path, gb)
-    cv2.imwrite(cam_gb_output_path, cam_gb_random)
 
 
     def binarize_cam(cam, threshold=0.2):
