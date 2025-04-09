@@ -5,6 +5,7 @@ import random
 import cv2
 import numpy as np
 import torch
+from sklearn.metrics import jaccard_score
 from torchvision import models
 from torchvision.models import ResNet50_Weights
 
@@ -177,3 +178,21 @@ if __name__ == '__main__':
     cv2.imwrite(cam_output_path, cam_image_random)
     cv2.imwrite(gb_output_path, gb)
     cv2.imwrite(cam_gb_output_path, cam_gb_random)
+
+
+    def binarize_cam(cam, threshold=0.2):
+        cam = cam - cam.min()
+        if cam.max() > 0:
+            cam = cam / cam.max()
+        mask = (cam >= threshold).astype(np.uint8)
+        return mask
+
+
+    mask_pred = binarize_cam(grayscale_cam_pred, 0.2)
+    mask_rand = binarize_cam(grayscale_cam_random, 0.2)
+
+    mask_pred_flat = mask_pred.flatten()
+    mask_rand_flat = mask_rand.flatten()
+
+    iou_score = jaccard_score(mask_pred_flat, mask_rand_flat)
+    print(f"IoU between predicted-label CAM and random-label CAM = {iou_score:.4f}")
