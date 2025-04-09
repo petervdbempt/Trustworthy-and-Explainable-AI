@@ -113,7 +113,6 @@ if __name__ == '__main__':
     predicted_label = torch.argmax(probs).item()
     print(f"Predicted label = {predicted_label} with confidence = {probs[predicted_label]:.4f}")
 
-    # Pick a random label that is *not* the predicted one
     random_label = random.randint(0, 999)
     while random_label == predicted_label:
         random_label = random.randint(0, 999)
