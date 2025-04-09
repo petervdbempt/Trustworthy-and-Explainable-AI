@@ -11,7 +11,7 @@ def one_shot_deletion_or_insertion(model, image, saliency_map, mode='deletion', 
     model.eval()
 
     with torch.no_grad():
-        output = model(image.unsqueeze(0))
+        output = model(image) #.unsqueeze(0)
         target_class = torch.argmax(output).item()
         original_conf = torch.softmax(output, dim=1)[0, target_class].item()
 
@@ -35,7 +35,7 @@ def one_shot_deletion_or_insertion(model, image, saliency_map, mode='deletion', 
         raise ValueError("mode must be 'insertion' or 'deletion'")
 
     with torch.no_grad():
-        output = model(perturbed.unsqueeze(0))
+        output = model(perturbed)#.unsqueeze(0)
         new_conf = torch.softmax(output, dim=1)[0, target_class].item()
 
     return original_conf, new_conf
