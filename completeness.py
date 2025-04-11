@@ -2,7 +2,6 @@ import torch
 import cv2
 import numpy as np
 import os
-import argparse
 
 def one_shot_deletion_or_insertion(model, image, saliency_map, mode='deletion', threshold=0.2):
     """
