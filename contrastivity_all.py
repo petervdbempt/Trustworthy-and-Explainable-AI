@@ -134,8 +134,11 @@ if __name__ == '__main__':
     # random_label = random.randint(0, 999)
     # while random_label == predicted_label:
     #     random_label = random.randint(0, 999)
-    random_label = 6
-    print(f"Random wrong label = {random_label}")
+    # random_label = 6
+    # print(f"Random wrong label = {random_label}")
+
+    most_wrong_label = torch.argmin(probs).item()
+    print(f"most wrong label = {most_wrong_label} with confidence = {probs[most_wrong_label]:.4f}")
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -172,7 +175,7 @@ if __name__ == '__main__':
                 )
                 cv2.imwrite(cam_output_path_pred, cam_image_pred)
 
-                targets_random = [ClassifierOutputTarget(random_label)]
+                targets_random = [ClassifierOutputTarget(most_wrong_label)]
                 grayscale_cam_random = cam(
                     input_tensor=input_tensor,
                     targets=targets_random,
@@ -190,7 +193,7 @@ if __name__ == '__main__':
 
                 cam_output_path_random = os.path.join(
                     args.output_dir,
-                    f'{method_name}_cam_random_label_{random_label}.jpg'
+                    f'{method_name}_cam_random_label_{most_wrong_label}.jpg'
                 )
                 cv2.imwrite(cam_output_path_random, cam_image_random)
 

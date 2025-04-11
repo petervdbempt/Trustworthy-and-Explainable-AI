@@ -113,10 +113,13 @@ if __name__ == '__main__':
     predicted_label = torch.argmax(probs).item()
     print(f"Predicted label = {predicted_label} with confidence = {probs[predicted_label]:.4f}")
 
-    random_label = random.randint(0, 999)
-    while random_label == predicted_label:
-        random_label = random.randint(0, 999)
-    print(f"Random wrong label = {random_label}")
+    # random_label = random.randint(0, 999)
+    # while random_label == predicted_label:
+    #     random_label = random.randint(0, 999)
+    # print(f"Random wrong label = {random_label}")
+
+    most_wrong_label = torch.argmin(probs).item()
+    print(f"most wrong label = {most_wrong_label} with confidence = {probs[most_wrong_label]:.4f}")
 
     # Using the with statement ensures the context is freed, and you can
     # recreate different CAM objects in a loop.
@@ -136,7 +139,7 @@ if __name__ == '__main__':
         cam_image_pred = cv2.cvtColor(cam_image_pred, cv2.COLOR_RGB2BGR)
 
 
-        targets_random = [ClassifierOutputTarget(random_label)]
+        targets_random = [ClassifierOutputTarget(most_wrong_label)]
         grayscale_cam_random = cam(input_tensor=input_tensor, targets=targets_random)
         grayscale_cam_random = grayscale_cam_random[0, :]
 
@@ -151,7 +154,7 @@ if __name__ == '__main__':
     # for random label
     os.makedirs(args.output_dir, exist_ok=True)
 
-    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_random_label{random_label}.jpg')
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_random_label{most_wrong_label}.jpg')
     cv2.imwrite(cam_output_path, cam_image_random)
 
 
