@@ -19,6 +19,14 @@ from pytorch_grad_cam.utils.image import (
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
 import torch.nn.functional as F
 
+
+'''
+Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
+You can run this code when you set the --image-path command to a directory with a valid image to process
+Use --method to choose which of the methods to run the code for, i.e. Grad-CAM, Score-CAM, Ablation-CAM, or Finer-CAM
+'''
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cpu',
@@ -113,11 +121,13 @@ if __name__ == '__main__':
     predicted_label = torch.argmax(probs).item()
     print(f"Predicted label = {predicted_label} with confidence = {probs[predicted_label]:.4f}")
 
-    # Pick a random label that is *not* the predicted one
-    random_label = random.randint(0, 999)
-    while random_label == predicted_label:
-        random_label = random.randint(0, 999)
-    print(f"Random wrong label = {random_label}")
+    # random_label = random.randint(0, 999)
+    # while random_label == predicted_label:
+    #     random_label = random.randint(0, 999)
+    # print(f"Random wrong label = {random_label}")
+
+    most_wrong_label = torch.argmin(probs).item()
+    print(f"most wrong label = {most_wrong_label} with confidence = {probs[most_wrong_label]:.4f}")
 
     # Using the with statement ensures the context is freed, and you can
     # recreate different CAM objects in a loop.
@@ -137,47 +147,23 @@ if __name__ == '__main__':
         cam_image_pred = cv2.cvtColor(cam_image_pred, cv2.COLOR_RGB2BGR)
 
 
-        targets_random = [ClassifierOutputTarget(random_label)]
+        targets_random = [ClassifierOutputTarget(most_wrong_label)]
         grayscale_cam_random = cam(input_tensor=input_tensor, targets=targets_random)
         grayscale_cam_random = grayscale_cam_random[0, :]
 
         cam_image_random = show_cam_on_image(rgb_img, grayscale_cam_random, use_rgb=True)
         cam_image_random = cv2.cvtColor(cam_image_random, cv2.COLOR_RGB2BGR)
 
-
-    gb_model = GuidedBackpropReLUModel(model=model, device=args.device)
-    gb = gb_model(input_tensor, target_category=None)
-
-    # for predicted label
-    cam_mask_pred = cv2.merge([grayscale_cam_pred, grayscale_cam_pred, grayscale_cam_pred])
-    cam_gb_pred = deprocess_image(cam_mask_pred * gb)
-    gb = deprocess_image(gb)
-
     os.makedirs(args.output_dir, exist_ok=True)
 
-    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_pred.jpg')
-    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb_pred.jpg')
-    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb_pred.jpg')
-
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_pred_label{predicted_label}.jpg')
     cv2.imwrite(cam_output_path, cam_image_pred)
-    cv2.imwrite(gb_output_path, gb)
-    cv2.imwrite(cam_gb_output_path, cam_gb_pred)
-
 
     # for random label
-    cam_mask_random = cv2.merge([grayscale_cam_random, grayscale_cam_random, grayscale_cam_random])
-    cam_gb_random = deprocess_image(cam_mask_random * gb)
-    gb = deprocess_image(gb)
-
     os.makedirs(args.output_dir, exist_ok=True)
 
-    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_random.jpg')
-    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb_random.jpg')
-    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb_random.jpg')
-
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_random_label{most_wrong_label}.jpg')
     cv2.imwrite(cam_output_path, cam_image_random)
-    cv2.imwrite(gb_output_path, gb)
-    cv2.imwrite(cam_gb_output_path, cam_gb_random)
 
 
     def binarize_cam(cam, threshold=0.2):
