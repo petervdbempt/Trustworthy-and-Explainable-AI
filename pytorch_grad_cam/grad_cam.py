@@ -1,3 +1,5 @@
+"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
+
 import numpy as np
 
 from pytorch_grad_cam.base_cam import BaseCAM

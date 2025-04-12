@@ -39,11 +39,6 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cpu',
                         help='Torch device to use')
-    parser.add_argument(
-        '--image-path',
-        type=str,
-        default='./examples/both.png',
-        help='Input image path')
     parser.add_argument('--aug-smooth', action='store_true',
                         help='Apply test time augmentation to smooth the CAM')
     parser.add_argument(
@@ -70,6 +65,8 @@ def get_args():
         default='C:/Users/joris/.cache/kagglehub/datasets/titericz/imagenet1k-val/versions/1',
         help='Directory with subfolders of images'
     )
+    parser.add_argument('--num-images', type=int, default=10,
+                        help='Number of images to process')
     args = parser.parse_args()
 
     if args.device:
@@ -157,8 +154,12 @@ if __name__ == '__main__':
         most_wrong_label = torch.argmin(probs).item()
 
         for method_name, cam_method_class in methods.items():
+            # Using the with statement ensures the context is freed, and you can
+            # recreate different CAM objects in a loop.
             with cam_method_class(model=model, target_layers=target_layers) as cam:
-                cam.batch_size = 32
+                # AblationCAM and ScoreCAM have batched implementations.
+                # You can override the internal batch size for faster computation.
+                cam.batch_size = 8
 
                 targets_predicted = [ClassifierOutputTarget(predicted_label)]
                 grayscale_cam_pred = cam(input_tensor=input_tensor,

@@ -1,3 +1,5 @@
+"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
+
 import numpy as np
 import torch
 from typing import List, Callable

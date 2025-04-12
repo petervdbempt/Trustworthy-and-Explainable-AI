@@ -1,3 +1,5 @@
+"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
+
 class ActivationsAndGradients:
     """ Class for extracting activations and
     registering gradients from targetted intermediate layers """

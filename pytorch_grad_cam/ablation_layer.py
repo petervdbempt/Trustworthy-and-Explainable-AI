@@ -1,3 +1,5 @@
+"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
+
 import torch
 from collections import OrderedDict
 import numpy as np

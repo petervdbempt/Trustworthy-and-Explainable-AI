@@ -142,7 +142,7 @@ if __name__ == '__main__':
                 model.eval()
                 target_layers = [model.layer4]
                 with cam_method_class(model=model, target_layers=target_layers) as cam:
-                    cam.batch_size = 32
+                    cam.batch_size = 8
                     grayscale_cam = cam(
                         input_tensor=input_tensor,
                         targets=None,

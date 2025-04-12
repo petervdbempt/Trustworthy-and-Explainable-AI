@@ -1,3 +1,5 @@
+"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
+
 from typing import Callable, List, Optional, Tuple
 
 import numpy as np
