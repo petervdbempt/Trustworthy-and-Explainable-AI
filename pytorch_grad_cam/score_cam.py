@@ -1,3 +1,5 @@
+"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
+
 import torch
 import tqdm
 from pytorch_grad_cam.base_cam import BaseCAM

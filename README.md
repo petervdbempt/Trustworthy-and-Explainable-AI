@@ -1,6 +1,9 @@
 # Trustworthy-and-Explainable-AI
 Final project for the Trustworthy and Explainable AI course
 
+For running only the explanation of one of the methods on an image use this command (from root folder):
+python cam.py --image-path <path_to_image> --method <method> --output-dir <output_dir_path> 
+
 
 
 For running the code of robustness parts:
@@ -11,7 +14,7 @@ python <robustness_method_name>.py --image-path <path_to_image> --method <method
 python <robustness_method_name>_all.py --image-path <path_to_image> --output-dir <output_dir_path>
 
 - For running all methods on a subset of the validation set we use:
-  - Make sur you have the dataset installed (this is already done for you in the code but can be done manually):
+  - Make sure that you have the dataset installed (this is already done for you in the code but can be done manually):
     import kagglehub
     data_path = kagglehub.dataset_download("titericz/imagenet1k-val")
     print("Path to dataset files:", data_path)

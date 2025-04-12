@@ -1,3 +1,5 @@
+"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
+
 def replace_layer_recursive(model, old_layer, new_layer):
     for name, layer in model._modules.items():
         if layer == old_layer:
