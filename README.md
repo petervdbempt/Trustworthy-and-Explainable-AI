@@ -6,7 +6,7 @@ python cam.py --image-path <path_to_image> --method <method> --output-dir <outpu
 
 
 
-For running the code of robustness parts:
+For running the code of robustness parts (consistency, continuity or contrastivity):
 - For running one of the methods on 1 image:
 python <robustness_method_name>.py --image-path <path_to_image> --method <method> --output-dir <output_dir_path>
 
