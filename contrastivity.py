@@ -19,6 +19,14 @@ from pytorch_grad_cam.utils.image import (
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
 import torch.nn.functional as F
 
+
+'''
+Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
+You can run this code when you set the --image-path command to a directory with a valid image to process
+Use --method to choose which of the methods to run the code for, i.e. Grad-CAM, Score-CAM, Ablation-CAM, or Finer-CAM
+'''
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cpu',

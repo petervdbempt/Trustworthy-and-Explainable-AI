@@ -26,6 +26,18 @@ from pytorch_grad_cam.utils.image import (
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 
+'''
+Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
+You can run this code if you have the validation set downloaded by adding --data-dir path_to_directory to the command
+You can download the validation set in this manner: 
+    import kagglehub
+    data_path = kagglehub.dataset_download("titericz/imagenet1k-val")
+    print("Path to dataset files:", data_path)
+
+    then the data-dir path set in the command to run it is the above printed data_path
+'''
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -35,10 +47,10 @@ def get_args():
         help='Torch device to use'
     )
     parser.add_argument(
-        '--image-path',
+        '--data-dir',
         type=str,
-        default='./examples/',
-        help='Input image path'
+        default='C:/Users/joris/.cache/kagglehub/datasets/titericz/imagenet1k-val/versions/1',
+        help='Directory with subfolders of images'
     )
     parser.add_argument(
         '--aug-smooth',
@@ -57,7 +69,7 @@ def get_args():
         default='output',
         help='Output directory to save the images'
     )
-    parser.add_argument('--num-images', type=int, default=1000,
+    parser.add_argument('--num-images', type=int, default=10,
                         help='Number of images to process')
     args = parser.parse_args()
 
@@ -88,6 +100,13 @@ if __name__ == '__main__':
     if args.device == 'hpu':
         import habana_frameworks.torch.core as htcore
 
+    import kagglehub
+
+    data_path = kagglehub.dataset_download("titericz/imagenet1k-val")
+    print("Path to dataset files:", data_path)
+
+    args.data_dir = data_path
+
     model1 = models.resnet50(weights=ResNet50_Weights.DEFAULT).to(args.device).eval()
     model2 = copy.deepcopy(model1)
     with torch.no_grad():
@@ -96,17 +115,21 @@ if __name__ == '__main__':
 
     model_list = [model1, model2]
 
-    paths = sorted(glob.glob(os.path.join(args.data_dir, '*.JPEG')))
-
     os.makedirs(args.output_dir, exist_ok=True)
+
+    all_paths = sorted(glob.glob(os.path.join(args.data_dir, '**', '*.jp*g'), recursive=True))
+    all_paths = all_paths[:args.num_images]
+    print(f"Found {len(all_paths)} images (limited to {args.num_images}).")
 
     iou_scores = {m: [] for m in methods}
 
-    for image_path in paths:
-        rgb_img = cv2.imread(image_path, 1)[:, :, ::-1]
+    for idx, image_path in enumerate(all_paths, 1):
+        rgb_img = cv2.imread(image_path, 1)
         if rgb_img is None:
             continue
+        rgb_img = rgb_img[:, :, ::-1]
         rgb_img = np.float32(rgb_img) / 255.0
+
         input_tensor = preprocess_image(
             rgb_img,
             mean=[0.485, 0.456, 0.406],
@@ -127,14 +150,14 @@ if __name__ == '__main__':
                         eigen_smooth=args.eigen_smooth
                     )
                     grayscale_cam = grayscale_cam[0, :]
-                    cam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
-                    cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
-                    out_name = (
-                            os.path.basename(image_path).replace('.JPEG', '')
-                            + f'_{method_name}_model{i}.jpg'
-                    )
-                    cam_output_path = os.path.join(args.output_dir, out_name)
-                    cv2.imwrite(cam_output_path, cam_image)
+                    # cam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
+                    # cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
+                    # out_name = (
+                    #         os.path.basename(image_path).replace('.JPEG', '').replace('.jpg', '')
+                    #         + f'_{method_name}_model{i}.jpg'
+                    # )
+                    # cam_output_path = os.path.join(args.output_dir, out_name)
+                    # cv2.imwrite(cam_output_path, cam_image)
                     cam_grayscale_per_model.append(grayscale_cam)
 
 
@@ -142,26 +165,24 @@ if __name__ == '__main__':
                 cam = cam - cam.min()
                 if cam.max() > 0:
                     cam = cam / cam.max()
-                mask = (cam >= threshold).astype(np.uint8)
-                return mask
+                return (cam >= threshold).astype(np.uint8)
 
 
             mask_pred = binarize_cam(cam_grayscale_per_model[0], 0.2)
             mask_rand = binarize_cam(cam_grayscale_per_model[1], 0.2)
+
             iou_score = jaccard_score(mask_pred.flatten(), mask_rand.flatten())
             iou_scores[method_name].append(iou_score)
 
+        print(f"[{idx}/{len(all_paths)}] {os.path.basename(image_path)}")
+
     results_file_path = os.path.join(args.output_dir, "results.txt")
-    with open(results_file_path, "w") as results_file:
+    with open(results_file_path, "w") as f:
         for method_name in methods:
-            if len(iou_scores[method_name]) > 0:
-                avg_iou = sum(iou_scores[method_name]) / len(iou_scores[method_name])
-            else:
-                avg_iou = 0.0
-            line_to_write = (
-                f"{method_name}: Average IoU over {len(iou_scores[method_name])} images = {avg_iou:.4f}\n"
-            )
-            print(line_to_write.strip())
-            results_file.write(line_to_write)
+            scores = iou_scores[method_name]
+            avg_iou = sum(scores) / len(scores) if scores else 0.0
+            line = f"{method_name}: Average IoU over {len(scores)} images = {avg_iou:.4f}\n"
+            print(line.strip())
+            f.write(line)
 
     print(f"\nResults written to {results_file_path}")

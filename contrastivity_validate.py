@@ -1,4 +1,5 @@
 import argparse
+import glob
 import os
 import random
 
@@ -22,10 +23,15 @@ from pytorch_grad_cam.utils.image import (
 )
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
-
 '''
 Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
-You can run this code when you set the --image-path command to a directory with a valid image to process
+You can run this code if you have the validation set downloaded by adding --data-dir path_to_directory to the command
+You can download the validation set in this manner: 
+    import kagglehub
+    data_path = kagglehub.dataset_download("titericz/imagenet1k-val")
+    print("Path to dataset files:", data_path)
+
+    then the data-dir path set in the command to run it is the above printed data_path
 '''
 
 
@@ -58,6 +64,12 @@ def get_args():
                         help='(Not used) CAM method')
     parser.add_argument('--output-dir', type=str, default='output',
                         help='Output directory to save the images')
+    parser.add_argument(
+        '--data-dir',
+        type=str,
+        default='C:/Users/joris/.cache/kagglehub/datasets/titericz/imagenet1k-val/versions/1',
+        help='Directory with subfolders of images'
+    )
     args = parser.parse_args()
 
     if args.device:
@@ -66,6 +78,16 @@ def get_args():
         print('Using CPU for computation')
 
     return args
+
+
+def binarize_cam(cam, threshold=0.2):
+    """Threshold a CAM to create a binary mask."""
+    # Normalize
+    cam = cam - cam.min()
+    if cam.max() > 0:
+        cam = cam / cam.max()
+    mask = (cam >= threshold).astype(np.uint8)
+    return mask
 
 
 if __name__ == '__main__':
@@ -80,13 +102,18 @@ if __name__ == '__main__':
     args = get_args()
     methods = {
         "gradcam": GradCAM,
-        "scorecam": ScoreCAM,
-        "ablationcam": AblationCAM,
         "finercam": FinerCAM
     }
 
     if args.device == 'hpu':
         import habana_frameworks.torch.core as htcore
+
+    import kagglehub
+
+    data_path = kagglehub.dataset_download("titericz/imagenet1k-val")
+    print("Path to dataset files:", data_path)
+
+    args.data_dir = data_path
 
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT).to(torch.device(args.device)).eval()
 
@@ -105,113 +132,79 @@ if __name__ == '__main__':
 
     target_layers = [model.layer4]
 
-    rgb_img = cv2.imread(args.image_path, 1)[:, :, ::-1]
-    rgb_img = np.float32(rgb_img) / 255
-    input_tensor = preprocess_image(rgb_img,
-                                    mean=[0.485, 0.456, 0.406],
-                                    std=[0.229, 0.224, 0.225]).to(args.device)
-
-    # We have to specify the target we want to generate
-    # the Class Activation Maps for.
-    # If targets is None, the highest scoring category (for every member in the batch) will be used.
-    # You can target specific categories by
-    # targets = [ClassifierOutputTarget(243)]
-    # targets = [ClassifierOutputReST(281)]
-    targets = None
-
-    # Compute predicted label
-    with torch.no_grad():
-        output_logits = model(input_tensor)
-        probs = F.softmax(output_logits, dim=1)[0]
-    predicted_label = torch.argmax(probs).item()
-    print(f"Predicted label = {predicted_label} "
-          f"with confidence = {probs[predicted_label]:.4f}")
-
-    # random_label = random.randint(0, 999)
-    # while random_label == predicted_label:
-    #     random_label = random.randint(0, 999)
-    # random_label = 6
-    # print(f"Random wrong label = {random_label}")
-
-    most_wrong_label = torch.argmin(probs).item()
-    print(f"most wrong label = {most_wrong_label} with confidence = {probs[most_wrong_label]:.4f}")
-
     os.makedirs(args.output_dir, exist_ok=True)
+    all_paths = sorted(glob.glob(os.path.join(args.data_dir, '**', '*.JPEG'), recursive=True))
+    all_paths = all_paths[:args.num_images]
+    print(f"Found {len(all_paths)} images.")
 
-    results_file_path = os.path.join(args.output_dir, "results.txt")
-    with open(results_file_path, "w") as results_file:
+    iou_scores = {m: [] for m in methods}
+
+    for idx, image_path in enumerate(all_paths, 1):
+        rgb_img = cv2.imread(image_path, 1)
+        if rgb_img is None:
+            continue
+        rgb_img = rgb_img[:, :, ::-1]
+        rgb_img = np.float32(rgb_img) / 255
+
+        input_tensor = preprocess_image(rgb_img,
+                                        mean=[0.485, 0.456, 0.406],
+                                        std=[0.229, 0.224, 0.225]).to(args.device)
+
+        with torch.no_grad():
+            output_logits = model(input_tensor)
+            probs = F.softmax(output_logits, dim=1)[0]
+        predicted_label = torch.argmax(probs).item()
+        most_wrong_label = torch.argmin(probs).item()
+
         for method_name, cam_method_class in methods.items():
-
-            # Using the with statement ensures the context is freed, and you can
-            # recreate different CAM objects in a loop.
             with cam_method_class(model=model, target_layers=target_layers) as cam:
-                # AblationCAM and ScoreCAM have batched implementations.
-                # You can override the internal batch size for faster computation.
                 cam.batch_size = 32
 
                 targets_predicted = [ClassifierOutputTarget(predicted_label)]
-                grayscale_cam_pred = cam(
-                    input_tensor=input_tensor,
-                    targets=targets_predicted,
-                    aug_smooth=args.aug_smooth,
-                    eigen_smooth=args.eigen_smooth
-                )
-                grayscale_cam_pred = grayscale_cam_pred[0, :]
+                grayscale_cam_pred = cam(input_tensor=input_tensor,
+                                         targets=targets_predicted,
+                                         aug_smooth=args.aug_smooth,
+                                         eigen_smooth=args.eigen_smooth)[0, :]
 
-                cam_image_pred = show_cam_on_image(
-                    rgb_img,
-                    grayscale_cam_pred,
-                    use_rgb=True
-                )
+                cam_image_pred = show_cam_on_image(rgb_img, grayscale_cam_pred, use_rgb=True)
                 cam_image_pred = cv2.cvtColor(cam_image_pred, cv2.COLOR_RGB2BGR)
 
-                cam_output_path_pred = os.path.join(
+                out_path_pred = os.path.join(
                     args.output_dir,
-                    f'{method_name}_cam_predicted_label_{predicted_label}.jpg'
+                    f"{os.path.basename(image_path).replace('.JPEG', '')}_{method_name}_pred_{predicted_label}.jpg"
                 )
-                cv2.imwrite(cam_output_path_pred, cam_image_pred)
+                cv2.imwrite(out_path_pred, cam_image_pred)
 
-                targets_random = [ClassifierOutputTarget(most_wrong_label)]
-                grayscale_cam_random = cam(
-                    input_tensor=input_tensor,
-                    targets=targets_random,
-                    aug_smooth=args.aug_smooth,
-                    eigen_smooth=args.eigen_smooth
-                )
-                grayscale_cam_random = grayscale_cam_random[0, :]
+                targets_wrong = [ClassifierOutputTarget(most_wrong_label)]
+                grayscale_cam_wrong = cam(input_tensor=input_tensor,
+                                          targets=targets_wrong,
+                                          aug_smooth=args.aug_smooth,
+                                          eigen_smooth=args.eigen_smooth)[0, :]
 
-                cam_image_random = show_cam_on_image(
-                    rgb_img,
-                    grayscale_cam_random,
-                    use_rgb=True
-                )
-                cam_image_random = cv2.cvtColor(cam_image_random, cv2.COLOR_RGB2BGR)
+                cam_image_wrong = show_cam_on_image(rgb_img, grayscale_cam_wrong, use_rgb=True)
+                cam_image_wrong = cv2.cvtColor(cam_image_wrong, cv2.COLOR_RGB2BGR)
 
-                cam_output_path_random = os.path.join(
+                out_path_wrong = os.path.join(
                     args.output_dir,
-                    f'{method_name}_cam_random_label_{most_wrong_label}.jpg'
+                    f"{os.path.basename(image_path).replace('.JPEG', '')}_{method_name}_wrong_{most_wrong_label}.jpg"
                 )
-                cv2.imwrite(cam_output_path_random, cam_image_random)
-
-
-            def binarize_cam(cam, threshold=0.2):
-                cam = cam - cam.min()
-                if cam.max() > 0:
-                    cam = cam / cam.max()
-                mask = (cam >= threshold).astype(np.uint8)
-                return mask
+                cv2.imwrite(out_path_wrong, cam_image_wrong)
 
             mask_pred = binarize_cam(grayscale_cam_pred, 0.2)
-            mask_rand = binarize_cam(grayscale_cam_random, 0.2)
+            mask_wrong = binarize_cam(grayscale_cam_wrong, 0.2)
+            iou_score = jaccard_score(mask_pred.flatten(), mask_wrong.flatten())
+            iou_scores[method_name].append(iou_score)
 
-            iou_score = jaccard_score(
-                mask_pred.flatten(),
-                mask_rand.flatten()
-            )
+        print(f"[{idx}/{len(all_paths)}] {os.path.basename(image_path)} "
+              f"=> pred={predicted_label}, wrong={most_wrong_label}")
 
+    results_file_path = os.path.join(args.output_dir, "results.txt")
+    with open(results_file_path, "w") as results_file:
+        for method_name in methods:
+            scores = iou_scores[method_name]
+            avg_iou = sum(scores) / len(scores) if scores else 0.0
             line_to_write = (
-                f"{method_name}: IoU between predicted-label CAM and "
-                f"random-label CAM = {iou_score:.4f}\n"
+                f"{method_name}: Average IoU over {len(scores)} images = {avg_iou:.4f}\n"
             )
             print(line_to_write.strip())
             results_file.write(line_to_write)

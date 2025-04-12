@@ -17,6 +17,12 @@ from pytorch_grad_cam.utils.image import (
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 
+'''
+Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
+You can run this code when you set the --image-path command to a directory with a valid image to process
+'''
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cpu',
@@ -52,15 +58,6 @@ def get_args():
         print('Using CPU for computation')
 
     return args
-
-
-def binarize_cam(cam, threshold=0.2):
-    """Threshold a CAM to create a binary mask."""
-    cam = cam - cam.min()
-    if cam.max() > 0:
-        cam = cam / cam.max()
-    mask = (cam >= threshold).astype(np.uint8)
-    return mask
 
 
 if __name__ == '__main__':
@@ -153,6 +150,14 @@ if __name__ == '__main__':
                     f'{method_name}_cam_image{idx}.jpg'
                 )
                 cv2.imwrite(out_path, cam_image)
+
+
+            def binarize_cam(cam, threshold=0.2):
+                cam = cam - cam.min()
+                if cam.max() > 0:
+                    cam = cam / cam.max()
+                mask = (cam >= threshold).astype(np.uint8)
+                return mask
 
             mask_normal = binarize_cam(grayscale_cams[0], 0.2)
             mask_perturbed = binarize_cam(grayscale_cams[1], 0.2)

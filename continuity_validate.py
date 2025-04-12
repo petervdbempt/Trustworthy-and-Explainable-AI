@@ -18,14 +18,28 @@ from pytorch_grad_cam.utils.image import (
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 
+'''
+Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
+You can run this code if you have the validation set downloaded by adding --data-dir path_to_directory to the command
+You can download the validation set in this manner: 
+    import kagglehub
+    data_path = kagglehub.dataset_download("titericz/imagenet1k-val")
+    print("Path to dataset files:", data_path)
+
+    then the data-dir path set in the command to run it is the above printed data_path
+'''
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cpu',
                         help='Torch device to use')
-    parser.add_argument('--image-path',
-                        type=str,
-                        default='./examples/',
-                        help='Input image path')
+    parser.add_argument(
+        '--data-dir',
+        type=str,
+        default='C:/Users/joris/.cache/kagglehub/datasets/titericz/imagenet1k-val/versions/1',
+        help='Directory with images'
+    )
     parser.add_argument('--aug-smooth', action='store_true',
                         help='Apply test time augmentation to smooth the CAM')
     parser.add_argument('--eigen-smooth',
@@ -45,7 +59,7 @@ def get_args():
                         help='(Not used) CAM method')
     parser.add_argument('--output-dir', type=str, default='output',
                         help='Output directory to save the images')
-    parser.add_argument('--num-images', type=int, default=1000,
+    parser.add_argument('--num-images', type=int, default=10,
                         help='Number of images to process')
     args = parser.parse_args()
 
@@ -88,7 +102,7 @@ if __name__ == '__main__':
     data_path = kagglehub.dataset_download("titericz/imagenet1k-val")
     print("Path to dataset files:", data_path)
 
-    args.image_path = data_path
+    args.data_dir = data_path
 
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT).to(torch.device(args.device)).eval()
 

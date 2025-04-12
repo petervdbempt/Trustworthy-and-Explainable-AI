@@ -25,6 +25,12 @@ from pytorch_grad_cam.utils.image import (
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget
 
 
+'''
+Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
+You can run this code when you set the --image-path command to a directory with a valid image to process
+'''
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
