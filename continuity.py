@@ -60,6 +60,17 @@ def get_args():
     return args
 
 
+
+# takes the most salient parts and makes it binary
+# needed for the sklearn jaccard_similarity function
+def binarize_cam(cam, threshold=0.2):
+    cam = cam - cam.min()
+    if cam.max() > 0:
+        cam = cam / cam.max()
+    mask = (cam >= threshold).astype(np.uint8)
+    return mask
+
+
 if __name__ == '__main__':
     """ python cam.py -image-path <path_to_image>
     Example usage of loading an image and computing:
@@ -149,15 +160,6 @@ if __name__ == '__main__':
 
         cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_image{i}.jpg')
         cv2.imwrite(cam_output_path, cam_image)
-
-
-    def binarize_cam(cam, threshold=0.2):
-        cam = cam - cam.min()
-        if cam.max() > 0:
-            cam = cam / cam.max()
-        mask = (cam >= threshold).astype(np.uint8)
-        return mask
-
 
     mask_pred = binarize_cam(output_images[0], 0.2)
     mask_rand = binarize_cam(output_images[1], 0.2)

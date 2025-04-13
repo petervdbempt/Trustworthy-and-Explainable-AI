@@ -80,7 +80,8 @@ def get_args():
 
     return args
 
-
+# takes the most salient parts and makes it binary
+# needed for the sklearn jaccard_similarity function
 def binarize_cam(cam, threshold=0.2):
     cam = cam - cam.min()
     if cam.max() > 0:
