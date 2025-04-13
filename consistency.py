@@ -69,6 +69,7 @@ def get_args():
 
 # takes the most salient parts and makes it binary
 # needed for the sklearn jaccard_similarity function
+# Chat-GPT 01 model helped me to know in what manner I could do this and thus helped with this function
 def binarize_cam(cam, threshold=0.2):
     cam = cam - cam.min()
     if cam.max() > 0:
