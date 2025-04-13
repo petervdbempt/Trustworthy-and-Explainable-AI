@@ -125,6 +125,8 @@ if __name__ == '__main__':
     os.makedirs(args.output_dir, exist_ok=True)
     results_file_path = os.path.join(args.output_dir, "results.txt")
 
+    # how to read the images (the below lines) from the directory with subdirectories and possible different formats was made
+    # with help from the Chat-GPT 01 model.
     all_paths = sorted(glob.glob(os.path.join(args.data_dir, '**', '*.jp*g'), recursive=True))
     all_paths = all_paths[:args.num_images]
     print(f"Found {len(all_paths)} images (limited to {args.num_images}).")
