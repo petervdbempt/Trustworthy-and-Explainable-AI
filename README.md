@@ -32,3 +32,9 @@ python <robustness_method_name>_all.py --image-path <path_to_image> --output-dir
   - The command for running is: 
       python <robustness_method_name>_validate.py --data-dir <path_to_validation_dataset> 
   --output-dir <output_dir_path> --num-images <number of images you want to run for>
+
+To run the code that assesses correctness of the CAM methods using the ROAD procedure, run the following command:
+python evaluate_saliency_road.py --image-path <path_to_image> --device cpu --evaluate-road --method <method>
+
+The ROAD implementation was taken from https://raw.githubusercontent.com/tleemann/road_evaluation/main/imputations.py (# MIT License) (# Copyright (c) 2022 Tobias Leemann)
+  
