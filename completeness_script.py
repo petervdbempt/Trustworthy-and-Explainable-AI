@@ -1,10 +1,9 @@
-"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
-
 import argparse
 import os
 import cv2
 import numpy as np
 import torch
+import completeness
 from torchvision import models
 from torchvision.models import ResNet50_Weights
 
@@ -102,7 +101,7 @@ if __name__ == '__main__':
     # the Class Activation Maps for.
     # If targets is None, the highest scoring category (for every member in the batch) will be used.
     # You can target specific categories by
-    # targets = [ClassifierOutputTarget(243)]
+    # targets = [ClassifierOutputTarget(281)]
     # targets = [ClassifierOutputReST(281)]
     targets = None
 
@@ -137,6 +136,16 @@ if __name__ == '__main__':
     cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam.jpg')
     gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb.jpg')
     cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb.jpg')
+
+    cv2.imshow("map", grayscale_cam)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+
+    original_conf, deletion_conf = completeness.one_shot_deletion_or_insertion(model, input_tensor, grayscale_cam)
+    original_conf, insertion_conf = completeness.one_shot_deletion_or_insertion(model, input_tensor, grayscale_cam,
+                                                                                mode='insertion')
+
+    print("original: ", original_conf, " deletion: ", deletion_conf, " insertion: ", insertion_conf)
 
     cv2.imwrite(cam_output_path, cam_image)
     cv2.imwrite(gb_output_path, gb)
