@@ -25,6 +25,7 @@ from road import (
 )
 
 
+# Parse arguments from cmd
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cpu',
@@ -66,7 +67,7 @@ def get_args():
 
 def evaluate_with_road(input_tensor, cam, model, targets=None, percentiles=[10, 20, 30, 40, 50, 60, 70, 80, 90]):
     """
-    Evaluate the CAM using ROAD metrics
+    Evaluate the CAM using ROAD metrics for multiple percentiles
 
     Args:
         input_tensor: Preprocessed input image tensor
@@ -85,25 +86,32 @@ def evaluate_with_road(input_tensor, cam, model, targets=None, percentiles=[10, 
             _, predicted = torch.max(outputs, 1)
             targets = [ClassifierOutputTarget(predicted[i].item()) for i in range(input_tensor.size(0))]
 
-    # Create ROAD metric instances
-    road_morf = ROADMostRelevantFirst(percentile=80)
-    road_lerf = ROADLeastRelevantFirst(percentile=20)
+    # Convert CAM to the format expected by ROAD
+    cam_expanded = np.expand_dims(cam, axis=0)
+
+    # Initialize results dictionary
+    scores = {}
+
+    # Calculate individual MoRF scores for each percentile
+    for p in percentiles:
+        road_morf = ROADMostRelevantFirst(percentile=p)
+        morf_score = road_morf(input_tensor, cam_expanded, targets, model)
+        scores[f'ROAD_MoRF_{p}'] = morf_score
+
+    # Calculate individual LeRF scores for each percentile
+    for p in percentiles:
+        road_lerf = ROADLeastRelevantFirst(percentile=p)
+        lerf_score = road_lerf(input_tensor, cam_expanded, targets, model)
+        scores[f'ROAD_LeRF_{p}'] = lerf_score
+
+    # Also include the average metrics
     road_morf_avg = ROADMostRelevantFirstAverage(percentiles=percentiles)
     road_lerf_avg = ROADLeastRelevantFirstAverage(percentiles=percentiles)
     road_combined = ROADCombined(percentiles=percentiles)
 
-    # Convert CAM to the format expected by ROAD
-    # ROAD expects cam in shape (num_samples, height, width)
-    cam_expanded = np.expand_dims(cam, axis=0)
-
-    # Evaluate CAM with different ROAD metrics
-    scores = {
-        'ROAD_MoRF': road_morf(input_tensor, cam_expanded, targets, model),
-        'ROAD_LeRF': road_lerf(input_tensor, cam_expanded, targets, model),
-        'ROAD_MoRF_Avg': road_morf_avg(input_tensor, cam_expanded, targets, model),
-        'ROAD_LeRF_Avg': road_lerf_avg(input_tensor, cam_expanded, targets, model),
-        'ROAD_Combined': road_combined(input_tensor, cam_expanded, targets, model)
-    }
+    scores['ROAD_MoRF_Avg'] = road_morf_avg(input_tensor, cam_expanded, targets, model)
+    scores['ROAD_LeRF_Avg'] = road_lerf_avg(input_tensor, cam_expanded, targets, model)
+    scores['ROAD_Combined'] = road_combined(input_tensor, cam_expanded, targets, model)
 
     return scores
 
@@ -133,14 +141,11 @@ if __name__ == '__main__':
     # If targets is None, the highest scoring category (for every member in the batch) will be used.
     targets = None
 
-    # Using the with statement ensures the context is freed, and you can
-    # recreate different CAM objects in a loop.
     cam_algorithm = methods[args.method]
     with cam_algorithm(model=model,
                        target_layers=target_layers) as cam:
 
         # AblationCAM and ScoreCAM have batched implementations.
-        # You can override the internal batch size for faster computation.
         cam.batch_size = 32
         grayscale_cam = cam(input_tensor=input_tensor,
                             targets=targets,
