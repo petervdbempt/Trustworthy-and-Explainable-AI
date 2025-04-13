@@ -76,7 +76,8 @@ def get_args():
 
     return args
 
-
+# takes the most salient parts and makes it binary
+# needed for the sklearn jaccard_similarity function
 def binarize_cam(cam, threshold=0.2):
     """Threshold a CAM to create a binary mask."""
     # Normalize
