@@ -1,10 +1,11 @@
-"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
-
 import argparse
 import os
+import random
+
 import cv2
 import numpy as np
 import torch
+from sklearn.metrics import jaccard_score
 from torchvision import models
 from torchvision.models import ResNet50_Weights
 
@@ -16,6 +17,14 @@ from pytorch_grad_cam.utils.image import (
     show_cam_on_image, deprocess_image, preprocess_image
 )
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
+import torch.nn.functional as F
+
+
+'''
+Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
+You can run this code when you set the --image-path command to a directory with a valid image to process
+Use --method to choose which of the methods to run the code for, i.e. Grad-CAM, Score-CAM, Ablation-CAM, or Finer-CAM
+'''
 
 
 def get_args():
@@ -33,8 +42,7 @@ def get_args():
         '--eigen-smooth',
         action='store_true',
         help='Reduce noise by taking the first principle component'
-        'of cam_weights*activations')
-
+             'of cam_weights*activations')
     parser.add_argument('--method', type=str, default='gradcam',
                         choices=[
                             'gradcam', 'fem', 'hirescam', 'gradcam++',
@@ -49,13 +57,22 @@ def get_args():
                         help='Output directory to save the images')
     args = parser.parse_args()
 
-    
     if args.device:
         print(f'Using device "{args.device}" for acceleration')
     else:
         print('Using CPU for computation')
 
     return args
+
+
+# takes the most salient parts and makes it binary
+# needed for the sklearn jaccard_similarity function
+def binarize_cam(cam, threshold=0.2):
+    cam = cam - cam.min()
+    if cam.max() > 0:
+        cam = cam / cam.max()
+    mask = (cam >= threshold).astype(np.uint8)
+    return mask
 
 
 if __name__ == '__main__':
@@ -74,8 +91,7 @@ if __name__ == '__main__':
         'finercam': FinerCAM
     }
 
-    if args.device=='hpu':
-
+    if args.device == 'hpu':
         import habana_frameworks.torch.core as htcore
 
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT).to(torch.device(args.device)).eval()
@@ -93,7 +109,6 @@ if __name__ == '__main__':
     # from pytorch_grad_cam.utils.find_layers import find_layer_types_recursive
     # find_layer_types_recursive(model, [torch.nn.ReLU])
 
-    
     target_layers = [model.layer4]
 
     rgb_img = cv2.imread(args.image_path, 1)[:, :, ::-1]
@@ -110,6 +125,20 @@ if __name__ == '__main__':
     # targets = [ClassifierOutputReST(281)]
     targets = None
 
+    with torch.no_grad():
+        output_logits = model(input_tensor)
+        probs = F.softmax(output_logits, dim=1)[0]  # shape: (1000,)
+    predicted_label = torch.argmax(probs).item()
+    print(f"Predicted label = {predicted_label} with confidence = {probs[predicted_label]:.4f}")
+
+    # random_label = random.randint(0, 999)
+    # while random_label == predicted_label:
+    #     random_label = random.randint(0, 999)
+    # print(f"Random wrong label = {random_label}")
+
+    most_wrong_label = torch.argmin(probs).item()
+    print(f"most wrong label = {most_wrong_label} with confidence = {probs[most_wrong_label]:.4f}")
+
     # Using the with statement ensures the context is freed, and you can
     # recreate different CAM objects in a loop.
     cam_algorithm = methods[args.method]
@@ -119,29 +148,38 @@ if __name__ == '__main__':
         # AblationCAM and ScoreCAM have batched implementations.
         # You can override the internal batch size for faster computation.
         cam.batch_size = 32
-        grayscale_cam = cam(input_tensor=input_tensor,
-                            targets=targets,
-                            aug_smooth=args.aug_smooth,
-                            eigen_smooth=args.eigen_smooth)
 
-        grayscale_cam = grayscale_cam[0, :]
+        targets_predicted = [ClassifierOutputTarget(predicted_label)]
+        grayscale_cam_pred = cam(input_tensor=input_tensor, targets=targets_predicted)
+        grayscale_cam_pred = grayscale_cam_pred[0, :]
 
-        cam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
-        cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
+        cam_image_pred = show_cam_on_image(rgb_img, grayscale_cam_pred, use_rgb=True)
+        cam_image_pred = cv2.cvtColor(cam_image_pred, cv2.COLOR_RGB2BGR)
 
-    gb_model = GuidedBackpropReLUModel(model=model, device=args.device)
-    gb = gb_model(input_tensor, target_category=None)
 
-    cam_mask = cv2.merge([grayscale_cam, grayscale_cam, grayscale_cam])
-    cam_gb = deprocess_image(cam_mask * gb)
-    gb = deprocess_image(gb)
+        targets_random = [ClassifierOutputTarget(most_wrong_label)]
+        grayscale_cam_random = cam(input_tensor=input_tensor, targets=targets_random)
+        grayscale_cam_random = grayscale_cam_random[0, :]
+
+        cam_image_random = show_cam_on_image(rgb_img, grayscale_cam_random, use_rgb=True)
+        cam_image_random = cv2.cvtColor(cam_image_random, cv2.COLOR_RGB2BGR)
 
     os.makedirs(args.output_dir, exist_ok=True)
 
-    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam.jpg')
-    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb.jpg')
-    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb.jpg')
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_pred_label{predicted_label}.jpg')
+    cv2.imwrite(cam_output_path, cam_image_pred)
 
-    cv2.imwrite(cam_output_path, cam_image)
-    cv2.imwrite(gb_output_path, gb)
-    cv2.imwrite(cam_gb_output_path, cam_gb)
+    # for random label
+    os.makedirs(args.output_dir, exist_ok=True)
+
+    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_random_label{most_wrong_label}.jpg')
+    cv2.imwrite(cam_output_path, cam_image_random)
+
+    mask_pred = binarize_cam(grayscale_cam_pred, 0.2)
+    mask_rand = binarize_cam(grayscale_cam_random, 0.2)
+
+    mask_pred_flat = mask_pred.flatten()
+    mask_rand_flat = mask_rand.flatten()
+
+    iou_score = jaccard_score(mask_pred_flat, mask_rand_flat)
+    print(f"IoU between predicted-label CAM and random-label CAM = {iou_score:.4f}")

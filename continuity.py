@@ -1,10 +1,9 @@
-"Code taken from https://github.com/jacobgil/pytorch-grad-cam"
-
 import argparse
 import os
 import cv2
 import numpy as np
 import torch
+from sklearn.metrics import jaccard_score
 from torchvision import models
 from torchvision.models import ResNet50_Weights
 
@@ -17,6 +16,11 @@ from pytorch_grad_cam.utils.image import (
 )
 from pytorch_grad_cam.utils.model_targets import ClassifierOutputTarget, ClassifierOutputReST
 
+'''
+Very heavily inspired on cam.py from https://github.com/jacobgil/pytorch-grad-cam
+You can run this code when you set the --image-path command to a directory with a valid image to process
+Use --method to choose which of the methods to run the code for, i.e. Grad-CAM, Score-CAM, Ablation-CAM, or Finer-CAM
+'''
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -33,8 +37,7 @@ def get_args():
         '--eigen-smooth',
         action='store_true',
         help='Reduce noise by taking the first principle component'
-        'of cam_weights*activations')
-
+             'of cam_weights*activations')
     parser.add_argument('--method', type=str, default='gradcam',
                         choices=[
                             'gradcam', 'fem', 'hirescam', 'gradcam++',
@@ -49,13 +52,23 @@ def get_args():
                         help='Output directory to save the images')
     args = parser.parse_args()
 
-    
     if args.device:
         print(f'Using device "{args.device}" for acceleration')
     else:
         print('Using CPU for computation')
 
     return args
+
+
+
+# takes the most salient parts and makes it binary
+# needed for the sklearn jaccard_similarity function
+def binarize_cam(cam, threshold=0.2):
+    cam = cam - cam.min()
+    if cam.max() > 0:
+        cam = cam / cam.max()
+    mask = (cam >= threshold).astype(np.uint8)
+    return mask
 
 
 if __name__ == '__main__':
@@ -74,8 +87,7 @@ if __name__ == '__main__':
         'finercam': FinerCAM
     }
 
-    if args.device=='hpu':
-
+    if args.device == 'hpu':
         import habana_frameworks.torch.core as htcore
 
     model = models.resnet50(weights=ResNet50_Weights.DEFAULT).to(torch.device(args.device)).eval()
@@ -93,14 +105,22 @@ if __name__ == '__main__':
     # from pytorch_grad_cam.utils.find_layers import find_layer_types_recursive
     # find_layer_types_recursive(model, [torch.nn.ReLU])
 
-    
     target_layers = [model.layer4]
 
-    rgb_img = cv2.imread(args.image_path, 1)[:, :, ::-1]
-    rgb_img = np.float32(rgb_img) / 255
-    input_tensor = preprocess_image(rgb_img,
+    normal_img = cv2.imread(args.image_path, 1)[:, :, ::-1]
+    normal_img = np.float32(normal_img) / 255
+    normal_input_tensor = preprocess_image(normal_img,
                                     mean=[0.485, 0.456, 0.406],
                                     std=[0.229, 0.224, 0.225]).to(args.device)
+
+    noise = 0.001 * np.random.randn(*normal_img.shape).astype(np.float32)
+    perturbed_img = (normal_img + noise).clip(0, 1)
+    perturbed_input_tensor = preprocess_image(perturbed_img,
+                                    mean=[0.485, 0.456, 0.406],
+                                    std=[0.229, 0.224, 0.225]).to(args.device)
+
+    images = [normal_img, perturbed_img]
+    inputs = [normal_input_tensor, perturbed_input_tensor]
 
     # We have to specify the target we want to generate
     # the Class Activation Maps for.
@@ -110,38 +130,42 @@ if __name__ == '__main__':
     # targets = [ClassifierOutputReST(281)]
     targets = None
 
-    # Using the with statement ensures the context is freed, and you can
-    # recreate different CAM objects in a loop.
-    cam_algorithm = methods[args.method]
-    with cam_algorithm(model=model,
-                       target_layers=target_layers) as cam:
+    output_images = []
+    for i in range(len(inputs)):
+        input_tensor = inputs[i]
+        image = images[i]
 
-        # AblationCAM and ScoreCAM have batched implementations.
-        # You can override the internal batch size for faster computation.
-        cam.batch_size = 32
-        grayscale_cam = cam(input_tensor=input_tensor,
-                            targets=targets,
-                            aug_smooth=args.aug_smooth,
-                            eigen_smooth=args.eigen_smooth)
+        # Using the with statement ensures the context is freed, and you can
+        # recreate different CAM objects in a loop.
+        cam_algorithm = methods[args.method]
+        with cam_algorithm(model=model,
+                           target_layers=target_layers) as cam:
 
-        grayscale_cam = grayscale_cam[0, :]
+            # AblationCAM and ScoreCAM have batched implementations.
+            # You can override the internal batch size for faster computation.
+            cam.batch_size = 32
+            grayscale_cam = cam(input_tensor=input_tensor,
+                                targets=targets,
+                                aug_smooth=args.aug_smooth,
+                                eigen_smooth=args.eigen_smooth)
 
-        cam_image = show_cam_on_image(rgb_img, grayscale_cam, use_rgb=True)
-        cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
+            grayscale_cam = grayscale_cam[0, :]
 
-    gb_model = GuidedBackpropReLUModel(model=model, device=args.device)
-    gb = gb_model(input_tensor, target_category=None)
+            output_images.append(grayscale_cam)
 
-    cam_mask = cv2.merge([grayscale_cam, grayscale_cam, grayscale_cam])
-    cam_gb = deprocess_image(cam_mask * gb)
-    gb = deprocess_image(gb)
+            cam_image = show_cam_on_image(image, grayscale_cam, use_rgb=True)
+            cam_image = cv2.cvtColor(cam_image, cv2.COLOR_RGB2BGR)
 
-    os.makedirs(args.output_dir, exist_ok=True)
+        os.makedirs(args.output_dir, exist_ok=True)
 
-    cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam.jpg')
-    gb_output_path = os.path.join(args.output_dir, f'{args.method}_gb.jpg')
-    cam_gb_output_path = os.path.join(args.output_dir, f'{args.method}_cam_gb.jpg')
+        cam_output_path = os.path.join(args.output_dir, f'{args.method}_cam_image{i}.jpg')
+        cv2.imwrite(cam_output_path, cam_image)
 
-    cv2.imwrite(cam_output_path, cam_image)
-    cv2.imwrite(gb_output_path, gb)
-    cv2.imwrite(cam_gb_output_path, cam_gb)
+    mask_pred = binarize_cam(output_images[0], 0.2)
+    mask_rand = binarize_cam(output_images[1], 0.2)
+
+    mask_pred_flat = mask_pred.flatten()
+    mask_rand_flat = mask_rand.flatten()
+
+    iou_score = jaccard_score(mask_pred_flat, mask_rand_flat)
+    print(f"IoU between normal and perturbed input image = {iou_score:.4f}")

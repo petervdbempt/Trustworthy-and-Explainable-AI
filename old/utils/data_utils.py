@@ -1,6 +1,6 @@
 import torch
 import torchvision.transforms as transforms
-from model.CNN_model import CNN
+from old.model.CNN_model import CNN
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
