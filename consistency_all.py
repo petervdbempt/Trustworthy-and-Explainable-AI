@@ -95,7 +95,7 @@ if __name__ == '__main__':
     model2 = copy.deepcopy(model1)
     with torch.no_grad():
         for param in model2.parameters():
-            param += 0.001 * torch.randn_like(param)
+            param += 0.0001 * torch.randn_like(param)
 
     model_list = [model1, model2]
 

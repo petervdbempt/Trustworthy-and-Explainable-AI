@@ -81,6 +81,13 @@ def get_args():
     return args
 
 
+def binarize_cam(cam, threshold=0.2):
+    cam = cam - cam.min()
+    if cam.max() > 0:
+        cam = cam / cam.max()
+    return (cam >= threshold).astype(np.uint8)
+
+
 if __name__ == '__main__':
     """ python cam.py -image-path <path_to_image>
         Example usage of loading an image and computing:
@@ -111,7 +118,7 @@ if __name__ == '__main__':
     model2 = copy.deepcopy(model1)
     with torch.no_grad():
         for param in model2.parameters():
-            param += 0.001 * torch.randn_like(param)
+            param += 0.0001 * torch.randn_like(param)
 
     model_list = [model1, model2]
 
@@ -142,7 +149,7 @@ if __name__ == '__main__':
                 model.eval()
                 target_layers = [model.layer4]
                 with cam_method_class(model=model, target_layers=target_layers) as cam:
-                    cam.batch_size = 8
+                    cam.batch_size = 16
                     grayscale_cam = cam(
                         input_tensor=input_tensor,
                         targets=None,
@@ -159,14 +166,6 @@ if __name__ == '__main__':
                     # cam_output_path = os.path.join(args.output_dir, out_name)
                     # cv2.imwrite(cam_output_path, cam_image)
                     cam_grayscale_per_model.append(grayscale_cam)
-
-
-            def binarize_cam(cam, threshold=0.2):
-                cam = cam - cam.min()
-                if cam.max() > 0:
-                    cam = cam / cam.max()
-                return (cam >= threshold).astype(np.uint8)
-
 
             mask_pred = binarize_cam(cam_grayscale_per_model[0], 0.2)
             mask_rand = binarize_cam(cam_grayscale_per_model[1], 0.2)

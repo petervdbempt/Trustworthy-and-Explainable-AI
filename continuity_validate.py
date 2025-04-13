@@ -124,16 +124,17 @@ if __name__ == '__main__':
     os.makedirs(args.output_dir, exist_ok=True)
     results_file_path = os.path.join(args.output_dir, "results.txt")
 
-    image_paths = sorted(glob.glob(os.path.join(args.data_dir, '*.JPEG')))
-    image_paths = image_paths[:args.num_images]
+    all_paths = sorted(glob.glob(os.path.join(args.data_dir, '**', '*.jp*g'), recursive=True))
+    all_paths = all_paths[:args.num_images]
+    print(f"Found {len(all_paths)} images (limited to {args.num_images}).")
 
-    print(f"Found {len(image_paths)} images in {args.data_dir} (processing up to {args.num_images})")
+    print(f"Found {len(all_paths)} images in {args.data_dir} (processing up to {args.num_images})")
 
     method_ious = {m: [] for m in methods}
 
-    for idx, img_path in enumerate(image_paths, 1):
+    for idx, img_path in enumerate(all_paths, 1):
         img_name = os.path.basename(img_path)
-        print(f"[{idx}/{len(image_paths)}] {img_name}")
+        print(f"[{idx}/{len(all_paths)}] {img_name}")
 
         normal_img_bgr = cv2.imread(img_path, 1)
         if normal_img_bgr is None:
@@ -163,7 +164,7 @@ if __name__ == '__main__':
             with cam_class(model=model, target_layers=target_layers) as cam:
                 # AblationCAM and ScoreCAM have batched implementations.
                 # You can override the internal batch size for faster computation.
-                cam.batch_size = 8
+                cam.batch_size = 16
 
                 grayscale_cam_normal = cam(
                     input_tensor=normal_input_tensor,
