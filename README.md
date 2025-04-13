@@ -13,7 +13,7 @@ All the scripts which you can run are located in the root folder, below is an ex
 For running only the explanation of one of the methods on an image use this command (from root folder):
 python cam.py --image-path <path_to_image> --method <method> --output-dir <output_dir_path> 
 
-
+For running the code of the completeness part, run python completeness_script.py --image-path <path_to_image> --method <method> --output-dir <output_dir_path>
 
 For running the code of robustness parts (consistency, continuity or contrastivity):
 - For running one of the methods on 1 image:
