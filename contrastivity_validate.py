@@ -159,7 +159,7 @@ if __name__ == '__main__':
             with cam_method_class(model=model, target_layers=target_layers) as cam:
                 # AblationCAM and ScoreCAM have batched implementations.
                 # You can override the internal batch size for faster computation.
-                cam.batch_size = 8
+                cam.batch_size = 16
 
                 targets_predicted = [ClassifierOutputTarget(predicted_label)]
                 grayscale_cam_pred = cam(input_tensor=input_tensor,
