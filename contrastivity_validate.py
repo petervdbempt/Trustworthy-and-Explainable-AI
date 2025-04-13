@@ -131,6 +131,9 @@ if __name__ == '__main__':
     target_layers = [model.layer4]
 
     os.makedirs(args.output_dir, exist_ok=True)
+
+    # how to read the images (the below lines) from the directory with subdirectories and possible different formats was made
+    # with help from the Chat-GPT 01 model.
     all_paths = sorted(glob.glob(os.path.join(args.data_dir, '**', '*.JPEG'), recursive=True))
     all_paths = all_paths[:args.num_images]
     print(f"Found {len(all_paths)} images.")
@@ -204,7 +207,7 @@ if __name__ == '__main__':
     with open(results_file_path, "w") as results_file:
         for method_name in methods:
             scores = iou_scores[method_name]
-            avg_iou = sum(scores) / len(scores) if scores else 0.0
+            avg_iou = sum(scores) / len(scores)
             line_to_write = (
                 f"{method_name}: Average IoU over {len(scores)} images = {avg_iou:.4f}\n"
             )
